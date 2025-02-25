@@ -1,0 +1,11 @@
+# cmake_uninstall.cmake.in
+if(EXISTS "${CMAKE_BINARY_DIR}/install_manifest.txt")
+  file(READ "${CMAKE_BINARY_DIR}/install_manifest.txt" installed_files)
+  foreach(file IN LISTS installed_files)
+    string(REGEX REPLACE "^${CMAKE_INSTALL_PREFIX}/" "" file_relative ${file})
+    message(STATUS "Removing ${file}")
+    file(REMOVE_RECURSE "${CMAKE_INSTALL_PREFIX}/${file_relative}")
+  endforeach()
+else()
+  message(FATAL_ERROR "The install_manifest.txt file does not exist. Cannot uninstall.")
+endif()

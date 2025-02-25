@@ -1,0 +1,12 @@
+if(EXISTS "${CMAKE_INSTALL_PREFIX}/lib/cmake/ORB_SLAM3/ORB_SLAM3Config.cmake")
+  message(STATUS "Uninstalling ORB_SLAM3")
+else()
+  message(FATAL_ERROR "Unable to uninstall ORB_SLAM3, no installed files found.")
+endif()
+
+file(READ "${CMAKE_BINARY_DIR}/install_manifest.txt" installed_files)
+
+foreach(file ${installed_files})
+  message(STATUS "Uninstalling: ${file}")
+  file(REMOVE ${file})
+endforeach()
