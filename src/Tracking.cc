@@ -41,11 +41,23 @@ namespace ORB_SLAM3
 {
 
 
-Tracking::Tracking(System *pSys, ORBVocabulary* pVoc, FrameDrawer *pFrameDrawer, MapDrawer *pMapDrawer, Atlas *pAtlas, KeyFrameDatabase* pKFDB, const string &strSettingPath, const int sensor, Settings* settings, const string &_nameSeq):
+Tracking::Tracking(System *pSys, ORBVocabulary* pVoc, 
+#ifdef USE_VISUALIZATION
+    FrameDrawer *pFrameDrawer, MapDrawer *pMapDrawer,
+#else
+    void* pFrameDrawer, void* pMapDrawer,
+#endif
+    Atlas *pAtlas, KeyFrameDatabase* pKFDB, const string &strSettingPath, const int sensor, Settings* settings, const string &_nameSeq):
     mState(NO_IMAGES_YET), mSensor(sensor), mTrackedFr(0), mbStep(false),
     mbOnlyTracking(false), mbMapUpdated(false), mbVO(false), mpORBVocabulary(pVoc), mpKeyFrameDB(pKFDB),
-    mbReadyToInitializate(false), mpSystem(pSys), mpViewer(NULL), bStepByStep(false),
-    mpFrameDrawer(pFrameDrawer), mpMapDrawer(pMapDrawer), mpAtlas(pAtlas), mnLastRelocFrameId(0), time_recently_lost(5.0),
+    mbReadyToInitializate(false), mpSystem(pSys),
+#ifdef USE_VISUALIZATION
+    mpViewer(NULL), bStepByStep(false),
+    mpFrameDrawer(pFrameDrawer), mpMapDrawer(pMapDrawer),
+#else
+    bStepByStep(false),
+#endif
+    mpAtlas(pAtlas), mnLastRelocFrameId(0), time_recently_lost(5.0),
     mnInitialFrameId(0), mbCreatedMap(false), mnFirstFrameId(0), mpCamera2(nullptr), mpLastKeyFrame(static_cast<KeyFrame*>(NULL))
 {
     // Load camera parameters from settings file
@@ -565,7 +577,9 @@ void Tracking::newParameterLoader(Settings *settings) {
 
         mTlr = settings->Tlr();
 
+		#ifdef USE_VISUALIZATION
         mpFrameDrawer->both = true;
+		#endif
     }
 
     if(mSensor==System::STEREO || mSensor==System::RGBD || mSensor==System::IMU_STEREO || mSensor==System::IMU_RGBD ){
@@ -1086,9 +1100,9 @@ bool Tracking::ParseCamParamFile(cv::FileStorage &fSettings)
 
                 static_cast<KannalaBrandt8*>(mpCamera)->mvLappingArea[0] = leftLappingBegin;
                 static_cast<KannalaBrandt8*>(mpCamera)->mvLappingArea[1] = leftLappingEnd;
-
+#ifdef USE_VISUALIZATION
                 mpFrameDrawer->both = true;
-
+#endif
                 vector<float> vCamCalib2{fx,fy,cx,cy,k1,k2,k3,k4};
                 mpCamera2 = new KannalaBrandt8(vCamCalib2);
                 mpCamera2 = mpAtlas->AddCamera(mpCamera2);
@@ -1434,10 +1448,12 @@ void Tracking::SetLoopClosing(LoopClosing *pLoopClosing)
     mpLoopClosing=pLoopClosing;
 }
 
+#ifdef USE_VISUALIZATION
 void Tracking::SetViewer(Viewer *pViewer)
 {
-    mpViewer=pViewer;
+    mpViewer = pViewer;
 }
+#endif
 
 void Tracking::SetStepByStep(bool bSet)
 {
@@ -1544,8 +1560,6 @@ Sophus::SE3f Tracking::GrabImageRGBD(const cv::Mat &imRGB,const cv::Mat &imD, co
         mCurrentFrame = Frame(mImGray,imDepth,timestamp,mpORBextractorLeft,mpORBVocabulary,mK,mDistCoef,mbf,mThDepth,mpCamera);
     else if(mSensor == System::IMU_RGBD)
         mCurrentFrame = Frame(mImGray,imDepth,timestamp,mpORBextractorLeft,mpORBVocabulary,mK,mDistCoef,mbf,mThDepth,mpCamera,&mLastFrame,*mpImuCalib);
-
-
 
 
 
@@ -2197,10 +2211,12 @@ void Tracking::Track()
         vdLMTrack_ms.push_back(timeLMTrack);
 #endif
 
+#ifdef USE_VISUALIZATION
         // Update drawer
         mpFrameDrawer->Update(this);
         if(mCurrentFrame.isSet())
             mpMapDrawer->SetCurrentCameraPose(mCurrentFrame.GetPose());
+#endif
 
         if(bOK || mState==RECENTLY_LOST)
         {
@@ -2215,8 +2231,10 @@ void Tracking::Track()
                 mbVelocity = false;
             }
 
+#ifdef USE_VISUALIZATION
             if(mSensor == System::IMU_MONOCULAR || mSensor == System::IMU_STEREO || mSensor == System::IMU_RGBD)
                 mpMapDrawer->SetCurrentCameraPose(mCurrentFrame.GetPose());
+#endif
 
             // Clean VO matches
             for(int i=0; i<mCurrentFrame.N; i++)
@@ -2437,9 +2455,9 @@ void Tracking::StereoInitialization()
         mpAtlas->SetReferenceMapPoints(mvpLocalMapPoints);
 
         mpAtlas->GetCurrentMap()->mvpKeyFrameOrigins.push_back(pKFini);
-
+#ifdef USE_VISUALIZATION
         mpMapDrawer->SetCurrentCameraPose(mCurrentFrame.GetPose());
-
+#endif
         mState=OK;
     }
 }
@@ -2648,9 +2666,9 @@ void Tracking::CreateInitialMapMonocular()
     mLastFrame = Frame(mCurrentFrame);
 
     mpAtlas->SetReferenceMapPoints(mvpLocalMapPoints);
-
+#ifdef USE_VISUALIZATION
     mpMapDrawer->SetCurrentCameraPose(pKFcur->GetPose());
-
+#endif
     mpAtlas->GetCurrentMap()->mvpKeyFrameOrigins.push_back(pKFini);
 
     mState=OK;
@@ -3780,12 +3798,14 @@ void Tracking::Reset(bool bLocMap)
 {
     Verbose::PrintMess("System Reseting", Verbose::VERBOSITY_NORMAL);
 
+	#ifdef USE_VISUALIZATION
     if(mpViewer)
     {
         mpViewer->RequestStop();
         while(!mpViewer->isStopped())
             usleep(3000);
     }
+	#endif
 
     // Reset Local Mapping
     if (!bLocMap)
@@ -3831,8 +3851,10 @@ void Tracking::Reset(bool bLocMap)
     mpLastKeyFrame = static_cast<KeyFrame*>(NULL);
     mvIniMatches.clear();
 
+	#ifdef USE_VISUALIZATION
     if(mpViewer)
         mpViewer->Release();
+	#endif
 
     Verbose::PrintMess("   End reseting! ", Verbose::VERBOSITY_NORMAL);
 }
@@ -3840,12 +3862,14 @@ void Tracking::Reset(bool bLocMap)
 void Tracking::ResetActiveMap(bool bLocMap)
 {
     Verbose::PrintMess("Active map Reseting", Verbose::VERBOSITY_NORMAL);
+	#ifdef USE_VISUALIZATION
     if(mpViewer)
     {
         mpViewer->RequestStop();
         while(!mpViewer->isStopped())
             usleep(3000);
     }
+	#endif
 
     Map* pMap = mpAtlas->GetCurrentMap();
 
@@ -3922,8 +3946,10 @@ void Tracking::ResetActiveMap(bool bLocMap)
 
     mbVelocity = false;
 
+	#ifdef USE_VISUALIZATION
     if(mpViewer)
         mpViewer->Release();
+	#endif
 
     Verbose::PrintMess("   End reseting! ", Verbose::VERBOSITY_NORMAL);
 }

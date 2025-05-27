@@ -29,17 +29,19 @@
 #include<opencv2/core/core.hpp>
 
 #include "Tracking.h"
-#include "FrameDrawer.h"
-#include "MapDrawer.h"
 #include "Atlas.h"
 #include "LocalMapping.h"
 #include "LoopClosing.h"
 #include "KeyFrameDatabase.h"
 #include "ORBVocabulary.h"
-#include "Viewer.h"
 #include "ImuTypes.h"
 #include "Settings.h"
 
+#ifdef USE_VISUALIZATION
+#include "FrameDrawer.h"
+#include "MapDrawer.h"
+#include "Viewer.h"
+#endif
 
 namespace ORB_SLAM3
 {
@@ -71,9 +73,11 @@ public:
     }
 };
 
+#ifdef USE_VISUALIZATION
 class Viewer;
 class FrameDrawer;
 class MapDrawer;
+#endif
 class Atlas;
 class Tracking;
 class LocalMapping;
@@ -209,7 +213,6 @@ private:
     KeyFrameDatabase* mpKeyFrameDatabase;
 
     // Map structure that stores the pointers to all KeyFrames and MapPoints.
-    //Map* mpMap;
     Atlas* mpAtlas;
 
     // Tracker. It receives a frame and computes the associated camera pose.
@@ -224,17 +227,21 @@ private:
     // a pose graph optimization and full bundle adjustment (in a new thread) afterwards.
     LoopClosing* mpLoopCloser;
 
+#ifdef USE_VISUALIZATION
     // The viewer draws the map and the current camera pose. It uses Pangolin.
     Viewer* mpViewer;
 
     FrameDrawer* mpFrameDrawer;
     MapDrawer* mpMapDrawer;
+#endif
 
     // System threads: Local Mapping, Loop Closing, Viewer.
     // The Tracking thread "lives" in the main execution thread that creates the System object.
     std::thread* mptLocalMapping;
     std::thread* mptLoopClosing;
+#ifdef USE_VISUALIZATION
     std::thread* mptViewer;
+#endif
 
     // Reset flag
     std::mutex mMutexReset;
