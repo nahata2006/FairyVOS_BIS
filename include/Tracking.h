@@ -69,7 +69,7 @@ public:
 #else
         void* pFrameDrawer, void* pMapDrawer,
 #endif
-        Atlas* pAtlas, KeyFrameDatabase* pKFDB, const string &strSettingPath, const int sensor, Settings* settings, const string &_nameSeq=std::string());
+        Atlas* pAtlas, KeyFrameDatabase* pKFDB, const std::string &strSettingPath, const int sensor, Settings* settings, const std::string &_nameSeq=std::string());
 
     ~Tracking();
 
@@ -79,9 +79,9 @@ public:
     bool ParseIMUParamFile(cv::FileStorage &fSettings);
 
     // Preprocess the input and call Track(). Extract features and performs stereo matching.
-    Sophus::SE3f GrabImageStereo(const cv::Mat &imRectLeft,const cv::Mat &imRectRight, const double &timestamp, string filename);
-    Sophus::SE3f GrabImageRGBD(const cv::Mat &imRGB,const cv::Mat &imD, const double &timestamp, string filename);
-    Sophus::SE3f GrabImageMonocular(const cv::Mat &im, const double &timestamp, string filename);
+    Sophus::SE3f GrabImageStereo(const cv::Mat &imRectLeft,const cv::Mat &imRectRight, const double &timestamp, std::string filename);
+    Sophus::SE3f GrabImageRGBD(const cv::Mat &imRGB,const cv::Mat &imD, const double &timestamp, std::string filename);
+    Sophus::SE3f GrabImageMonocular(const cv::Mat &im, const double &timestamp, std::string filename);
 
     void GrabImuData(const IMU::Point &imuMeasurement);
 
@@ -93,7 +93,7 @@ public:
 
     // Load new settings
     // The focal lenght should be similar or scale prediction will fail when projecting points
-    void ChangeCalibration(const string &strSettingPath);
+    void ChangeCalibration(const std::string &strSettingPath);
 
     // Use this function if you have deactivated local mapping and you only want to localize the camera.
     void InformOnlyTracking(const bool &flag);
@@ -113,8 +113,8 @@ public:
     int GetMatchesInliers();
 
     //DEBUG
-    void SaveSubTrajectory(string strNameFile_frames, string strNameFile_kf, string strFolder="");
-    void SaveSubTrajectory(string strNameFile_frames, string strNameFile_kf, Map* pMap);
+    void SaveSubTrajectory(std::string strNameFile_frames, std::string strNameFile_kf, std::string strFolder="");
+    void SaveSubTrajectory(std::string strNameFile_frames, std::string strNameFile_kf, Map* pMap);
 
     float GetImageScale();
 
@@ -159,10 +159,10 @@ public:
 
     // Lists used to recover the full camera trajectory at the end of the execution.
     // Basically we store the reference keyframe for each frame and its relative transformation
-    list<Sophus::SE3f> mlRelativeFramePoses;
-    list<KeyFrame*> mlpReferences;
-    list<double> mlFrameTimes;
-    list<bool> mlbLost;
+    std::list<Sophus::SE3f> mlRelativeFramePoses;
+    std::list<KeyFrame*> mlpReferences;
+    std::list<double> mlFrameTimes;
+    std::list<bool> mlbLost;
 
     // frames with estimated pose
     int mTrackedFr;
@@ -182,7 +182,7 @@ public:
     bool mFastInit = false;
 
 
-    vector<MapPoint*> GetLocalMapMPS();
+    std::vector<MapPoint*> GetLocalMapMPS();
 
     bool mbWriteStats;
 
@@ -191,15 +191,15 @@ public:
     void TrackStats2File();
     void PrintTimeStats();
 
-    vector<double> vdRectStereo_ms;
-    vector<double> vdResizeImage_ms;
-    vector<double> vdORBExtract_ms;
-    vector<double> vdStereoMatch_ms;
-    vector<double> vdIMUInteg_ms;
-    vector<double> vdPosePred_ms;
-    vector<double> vdLMTrack_ms;
-    vector<double> vdNewKF_ms;
-    vector<double> vdTrackTotal_ms;
+    std::vector<double> vdRectStereo_ms;
+    std::vector<double> vdResizeImage_ms;
+    std::vector<double> vdORBExtract_ms;
+    std::vector<double> vdStereoMatch_ms;
+    std::vector<double> vdIMUInteg_ms;
+    std::vector<double> vdPosePred_ms;
+    std::vector<double> vdLMTrack_ms;
+    std::vector<double> vdNewKF_ms;
+    std::vector<double> vdTrackTotal_ms;
 #endif
 
 protected:
@@ -347,15 +347,15 @@ protected:
     //Color order (true RGB, false BGR, ignored if grayscale)
     bool mbRGB;
 
-    list<MapPoint*> mlpTemporalPoints;
+    std::list<MapPoint*> mlpTemporalPoints;
 
     //int nMapChangeIndex;
 
     int mnNumDataset;
 
-    ofstream f_track_stats;
+    std::ofstream f_track_stats;
 
-    ofstream f_track_times;
+    std::ofstream f_track_times;
     double mTime_PreIntIMU;
     double mTime_PosePred;
     double mTime_LocalMapTrack;

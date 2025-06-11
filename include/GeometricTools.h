@@ -24,6 +24,8 @@
 #include <sophus/se3.hpp>
 #include <Eigen/Core>
 
+#include <iostream>
+
 namespace ORB_SLAM3
 {
 
@@ -74,6 +76,6 @@ public:
 
 };
 
-}// namespace ORB_SLAM
+} // namespace ORB_SLAM
 
 #endif // GEOMETRIC_TOOLS_H

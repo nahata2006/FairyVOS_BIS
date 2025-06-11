@@ -3632,7 +3632,7 @@ bool Tracking::Relocalization()
 
     // Relocalization is performed when tracking is lost
     // Track Lost: Query KeyFrame Database for keyframe candidates for relocalisation
-    vector<KeyFrame*> vpCandidateKFs = mpKeyFrameDB->DetectRelocalizationCandidates(&mCurrentFrame, mpAtlas->GetCurrentMap());
+    std::vector<KeyFrame*> vpCandidateKFs = mpKeyFrameDB->DetectRelocalizationCandidates(&mCurrentFrame, mpAtlas->GetCurrentMap());
 
     if(vpCandidateKFs.empty()) {
         Verbose::PrintMess("There are not candidates", Verbose::VERBOSITY_NORMAL);
@@ -3645,13 +3645,13 @@ bool Tracking::Relocalization()
     // If enough matches are found we setup a PnP solver
     ORBmatcher matcher(0.75,true);
 
-    vector<MLPnPsolver*> vpMLPnPsolvers;
+    std::vector<MLPnPsolver*> vpMLPnPsolvers;
     vpMLPnPsolvers.resize(nKFs);
 
-    vector<vector<MapPoint*> > vvpMapPointMatches;
+    std::vector<std::vector<MapPoint*> > vvpMapPointMatches;
     vvpMapPointMatches.resize(nKFs);
 
-    vector<bool> vbDiscarded;
+    std::vector<bool> vbDiscarded;
     vbDiscarded.resize(nKFs);
 
     int nCandidates=0;
@@ -3692,7 +3692,7 @@ bool Tracking::Relocalization()
                 continue;
 
             // Perform 5 Ransac Iterations
-            vector<bool> vbInliers;
+            std::vector<bool> vbInliers;
             int nInliers;
             bool bNoMore;
 
@@ -3714,7 +3714,7 @@ bool Tracking::Relocalization()
                 mCurrentFrame.SetPose(Tcw);
                 // Tcw.copyTo(mCurrentFrame.mTcw);
 
-                set<MapPoint*> sFound;
+                std::set<MapPoint*> sFound;
 
                 const int np = vbInliers.size();
 
@@ -3788,7 +3788,7 @@ bool Tracking::Relocalization()
     else
     {
         mnLastRelocFrameId = mCurrentFrame.mnId;
-        cout << "Relocalized!!" << endl;
+        std::cout << "Relocalized!!" << std::endl;
         return true;
     }
 
@@ -3905,7 +3905,7 @@ void Tracking::ResetActiveMap(bool bLocMap)
     list<bool> lbLost;
     // lbLost.reserve(mlbLost.size());
     unsigned int index = mnFirstFrameId;
-    cout << "mnFirstFrameId = " << mnFirstFrameId << endl;
+    std::cout << "mnFirstFrameId = " << mnFirstFrameId << std::endl;
     for(Map* pMap : mpAtlas->GetAllMaps())
     {
         if(pMap->GetAllKeyFrames().size() > 0)
@@ -3917,7 +3917,7 @@ void Tracking::ResetActiveMap(bool bLocMap)
 
     //cout << "First Frame id: " << index << endl;
     int num_lost = 0;
-    cout << "mnInitialFrameId = " << mnInitialFrameId << endl;
+    std::cout << "mnInitialFrameId = " << mnInitialFrameId << std::endl;
 
     for(list<bool>::iterator ilbL = mlbLost.begin(); ilbL != mlbLost.end(); ilbL++)
     {
@@ -3931,7 +3931,7 @@ void Tracking::ResetActiveMap(bool bLocMap)
 
         index++;
     }
-    cout << num_lost << " Frames set to lost" << endl;
+    std::cout << num_lost << " Frames set to lost" << std::endl;
 
     mlbLost = lbLost;
 

@@ -21,14 +21,18 @@
 #include "Converter.h"
 #include "GeometricTools.h"
 
-#include "Thirdparty/DBoW2/DUtils/Random.h"
-
-#include<thread>
-
+#include <thread>
+#include <random>
 
 using namespace std;
 namespace ORB_SLAM3
 {
+
+	static int RandomInt(int min, int max){
+		int d = max - min + 1;
+		return int(((double)rand()/((double)RAND_MAX + 1.0)) * d) + min;
+	}
+
     TwoViewReconstruction::TwoViewReconstruction(const Eigen::Matrix3f& k, float sigma, int iterations)
     {
         mK = k;
@@ -78,7 +82,7 @@ namespace ORB_SLAM3
         // Generate sets of 8 points for each RANSAC iteration
         mvSets = vector< vector<size_t> >(mMaxIterations,vector<size_t>(8,0));
 
-        DUtils::Random::SeedRandOnce(0);
+        srand(0);
 
         for(int it=0; it<mMaxIterations; it++)
         {
@@ -87,7 +91,7 @@ namespace ORB_SLAM3
             // Select a minimum set
             for(size_t j=0; j<8; j++)
             {
-                int randi = DUtils::Random::RandomInt(0,vAvailableIndices.size()-1);
+                int randi = RandomInt(0,vAvailableIndices.size()-1);
                 int idx = vAvailableIndices[randi];
 
                 mvSets[it][j] = idx;
