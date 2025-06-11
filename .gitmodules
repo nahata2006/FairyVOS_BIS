@@ -1,0 +1,6 @@
+[submodule "external/DBoW2"]
+	path = external/DBoW2
+	url = https://github.com/whereable-ai/DBoW2
+[submodule "external/DLib"]
+	path = external/DLib
+	url = https://github.com/whereable-ai/DLib
