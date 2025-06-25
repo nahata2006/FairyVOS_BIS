@@ -11,7 +11,7 @@ The `Frame::GetStereoDisparity()` function provides a way to compute stereo disp
 1. **FoundationStereo Model**: You need to have the FoundationStereo model and its dependencies set up
 2. **Python Environment**: Python with required packages (torch, opencv-python, numpy, etc.)
 3. **Pretrained Model**: The pretrained model checkpoint at `./pretrained_models/23-51-11/model_best_bp2.pth`
-4. **Modified Python Script**: The `scripts/run_demo_for_cpp.py` script (included in this integration)
+4. **External FoundationStereo Script**: Uses the original `run_demo.py` from FoundationStereo repository
 
 ## Files Modified/Added
 
@@ -20,7 +20,7 @@ The `Frame::GetStereoDisparity()` function provides a way to compute stereo disp
 - `include/Frame.h` - Added function declaration
 
 ### New Files:
-- `scripts/run_demo_for_cpp.py` - Modified Python script that saves disparity in C++ readable formats
+- Uses original FoundationStereo `run_demo.py` from the FoundationStereo repository
 - `Examples/test_stereo_disparity.cpp` - Example usage program
 - `Examples/CMakeLists_stereo_addition.txt` - CMake configuration for the example
 
@@ -94,15 +94,17 @@ make test_stereo_disparity
 Make sure your directory structure looks like this:
 ```
 ORB_SLAM3/
+├── test_outputs/ (will be created automatically)
+└── ... (other ORB-SLAM3 files)
+
+FoundationStereo/ (separate repository)
 ├── scripts/
-│   ├── run_demo.py (original)
-│   └── run_demo_for_cpp.py (modified for C++)
+│   └── run_demo.py (original FoundationStereo script)
 ├── pretrained_models/
 │   └── 23-51-11/
 │       ├── model_best_bp2.pth
 │       └── cfg.yaml
-├── test_outputs/ (will be created automatically)
-└── ... (other ORB-SLAM3 files)
+└── ... (other FoundationStereo files)
 ```
 
 ## Notes and Limitations
@@ -125,7 +127,7 @@ You can integrate this function into the ORB-SLAM3 pipeline by:
 
 ### Common Issues:
 
-1. **Python script not found**: Ensure `scripts/run_demo_for_cpp.py` exists and is executable
+1. **Python script not found**: Ensure FoundationStereo repository is properly set up with `scripts/run_demo.py`
 2. **Model not found**: Check that the pretrained model path is correct
 3. **CUDA errors**: Ensure your system has compatible CUDA installation
 4. **Permission errors**: Ensure write permissions for the output directory
@@ -145,14 +147,18 @@ You can integrate this function into the ORB-SLAM3 pipeline by:
 
 ## Command Used
 
-The function essentially executes this Python command:
+The function essentially executes this Python command from the FoundationStereo repository:
 ```bash
-python scripts/run_demo_for_cpp.py \
+cd /home/lunar/FoundationStereo
+conda activate foundation_stereo
+python scripts/run_demo.py \
     --left_file /path/to/left.png \
     --right_file /path/to/right.png \
-    --ckpt_dir ./pretrained_models/23-51-11/model_best_bp2.pth \
+    --intrinsic_file /path/to/K.txt \
+    --ckpt_dir /path/to/model_best_bp2.pth \
     --out_dir /path/to/output \
-    --get_pc 0 \
-    --scale 1.0 \
-    --valid_iters 32
+    --valid_iters 32 \
+    --get_pc 1 \
+    --remove_invisible 1 \
+    --denoise_cloud 0
 ``` 
