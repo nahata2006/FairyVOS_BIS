@@ -1,0 +1,41 @@
+T_BS:
+  data:
+  - 1.0
+  - 0.0
+  - 0.0
+  - 0.162
+  - 0.0
+  - 1.0
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  - 1.0
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  - 1.0
+camera_model: pinhole
+comment: Right camera
+distortion_coefficients:
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+distortion_model: radtan
+intrinsics:
+- 458.0
+- 0.0
+- 320.0
+- 0.0
+- 458.0
+- 240.0
+- 0.0
+- 0.0
+- 1.0
+rate_hz: 30.0
+resolution:
+- 640
+- 480
+sensor_type: camera

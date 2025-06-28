@@ -8,10 +8,10 @@ source ~/miniconda3/etc/profile.d/conda.sh
 conda activate foundation_stereo
 
 # Default bag file path
-BAG_FILE="/home/lunar/Downloads/lunar_stereo_data_2025-06-17-17-13-18.bag"
+BAG_FILE="/home/lunar/Downloads/2025-06-07-07-40-32.bag"
 
 # Output directory (default if not provided)
-OUTPUT_DIR=${1:-"./lunar_mav0_data"}
+OUTPUT_DIR=${1:-"./2025-06-07-07-40-32_mav0_data"}
 
 echo "Extracting bag: $BAG_FILE"
 echo "Output directory: $OUTPUT_DIR"
