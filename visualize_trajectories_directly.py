@@ -321,11 +321,11 @@ def create_comprehensive_comparison(mav0_path):
     
     # 1. Main XY trajectory comparison
     ax1 = plt.subplot(2, 3, 1)
-    ax1.plot(gt['tx'], gt['ty'], 'k-', linewidth=3, label=f'Ground Truth ({len(gt)} poses)', alpha=0.8)
+    ax1.plot(gt['tx'].values, gt['ty'].values, 'k-', linewidth=3, label=f'Ground Truth ({len(gt)} poses)', alpha=0.8)
     
     for method_name, traj in trajectory_data.items():
         color = method_colors[method_name]
-        ax1.plot(traj['tx'], traj['ty'], color=color, linewidth=2, 
+        ax1.plot(traj['tx'].values, traj['ty'].values, color=color, linewidth=2, 
                 label=f'{method_name} ({len(traj)} poses)', alpha=0.8)
         
         # Mark start points
@@ -344,11 +344,11 @@ def create_comprehensive_comparison(mav0_path):
     
     # 2. XZ trajectory comparison
     ax2 = plt.subplot(2, 3, 2)
-    ax2.plot(gt['tx'], gt['tz'], 'k-', linewidth=3, label='Ground Truth', alpha=0.8)
+    ax2.plot(gt['tx'].values, gt['tz'].values, 'k-', linewidth=3, label='Ground Truth', alpha=0.8)
     
     for method_name, traj in trajectory_data.items():
         color = method_colors[method_name]
-        ax2.plot(traj['tx'], traj['tz'], color=color, linewidth=2, 
+        ax2.plot(traj['tx'].values, traj['tz'].values, color=color, linewidth=2, 
                 label=method_name, alpha=0.8)
     
     ax2.set_xlabel('X (m)')
@@ -360,14 +360,14 @@ def create_comprehensive_comparison(mav0_path):
     
     # 3. Position vs Time
     ax3 = plt.subplot(2, 3, 3)
-    ax3.plot(gt['timestamp'], gt['tx'], 'k-', linewidth=2, label='GT X', alpha=0.7)
-    ax3.plot(gt['timestamp'], gt['ty'], 'k--', linewidth=2, label='GT Y', alpha=0.7)
+    ax3.plot(gt['timestamp'].values, gt['tx'].values, 'k-', linewidth=2, label='GT X', alpha=0.7)
+    ax3.plot(gt['timestamp'].values, gt['ty'].values, 'k--', linewidth=2, label='GT Y', alpha=0.7)
     
     for method_name, traj in trajectory_data.items():
         color = method_colors[method_name]
-        ax3.plot(traj['timestamp'], traj['tx'], color=color, linewidth=1.5, 
+        ax3.plot(traj['timestamp'].values, traj['tx'].values, color=color, linewidth=1.5, 
                 label=f'{method_name} X', alpha=0.8)
-        ax3.plot(traj['timestamp'], traj['ty'], '--', color=color, linewidth=1.5, 
+        ax3.plot(traj['timestamp'].values, traj['ty'].values, '--', color=color, linewidth=1.5, 
                 label=f'{method_name} Y', alpha=0.8)
     
     ax3.set_xlabel('Time (s)')
@@ -378,11 +378,11 @@ def create_comprehensive_comparison(mav0_path):
     
     # 4. 3D trajectory
     ax4 = plt.subplot(2, 3, 4, projection='3d')
-    ax4.plot(gt['tx'], gt['ty'], gt['tz'], 'k-', linewidth=3, label='Ground Truth', alpha=0.8)
+    ax4.plot(gt['tx'].values, gt['ty'].values, gt['tz'].values, 'k-', linewidth=3, label='Ground Truth', alpha=0.8)
     
     for method_name, traj in trajectory_data.items():
         color = method_colors[method_name]
-        ax4.plot(traj['tx'], traj['ty'], traj['tz'], color=color, linewidth=2, 
+        ax4.plot(traj['tx'].values, traj['ty'].values, traj['tz'].values, color=color, linewidth=2, 
                 label=method_name, alpha=0.8)
     
     ax4.set_xlabel('X (m)')
@@ -394,9 +394,9 @@ def create_comprehensive_comparison(mav0_path):
     # 5. Coordinate range comparison
     ax5 = plt.subplot(2, 3, 5)
     
-    gt_ranges = np.array([gt['tx'].max() - gt['tx'].min(), 
-                         gt['ty'].max() - gt['ty'].min(), 
-                         gt['tz'].max() - gt['tz'].min()])
+    gt_ranges = np.array([gt['tx'].values.max() - gt['tx'].values.min(), 
+                         gt['ty'].values.max() - gt['ty'].values.min(), 
+                         gt['tz'].values.max() - gt['tz'].values.min()])
     
     x_pos = np.arange(3)
     width = 0.2
@@ -407,9 +407,9 @@ def create_comprehensive_comparison(mav0_path):
     
     # Plot each method
     for i, (method_name, traj) in enumerate(trajectory_data.items()):
-        traj_ranges = np.array([traj['tx'].max() - traj['tx'].min(), 
-                               traj['ty'].max() - traj['ty'].min(), 
-                               traj['tz'].max() - traj['tz'].min()])
+        traj_ranges = np.array([traj['tx'].values.max() - traj['tx'].values.min(), 
+                               traj['ty'].values.max() - traj['ty'].values.min(), 
+                               traj['tz'].values.max() - traj['tz'].values.min()])
         
         offset = width * (i - len(trajectory_data)/2 + 0.5)
         color = method_colors[method_name]
@@ -432,14 +432,14 @@ def create_comprehensive_comparison(mav0_path):
     stats_text = f"📊 TRAJECTORY STATISTICS\n\n"
     stats_text += f"Ground Truth ({best_transform}):\n"
     
-    gt_path = np.sum(np.sqrt(np.diff(gt['tx'])**2 + np.diff(gt['ty'])**2 + np.diff(gt['tz'])**2))
-    gt_duration = gt['timestamp'].max() - gt['timestamp'].min()
+    gt_path = np.sum(np.sqrt(np.diff(gt['tx'].values)**2 + np.diff(gt['ty'].values)**2 + np.diff(gt['tz'].values)**2))
+    gt_duration = gt['timestamp'].values.max() - gt['timestamp'].values.min()
     stats_text += f"  Path: {gt_path:.1f}m, Duration: {gt_duration:.1f}s\n"
     stats_text += f"  Poses: {len(gt)}\n\n"
     
     for method_name, traj in trajectory_data.items():
-        path_length = np.sum(np.sqrt(np.diff(traj['tx'])**2 + np.diff(traj['ty'])**2 + np.diff(traj['tz'])**2))
-        duration = traj['timestamp'].max() - traj['timestamp'].min()
+        path_length = np.sum(np.sqrt(np.diff(traj['tx'].values)**2 + np.diff(traj['ty'].values)**2 + np.diff(traj['tz'].values)**2))
+        duration = traj['timestamp'].values.max() - traj['timestamp'].values.min()
         
         stats_text += f"{method_name}:\n"
         stats_text += f"  Path: {path_length:.1f}m ({path_length/gt_path*100:.1f}% of GT)\n"

@@ -18,7 +18,7 @@ set -e  # Exit on any error
 
 # Script configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DEFAULT_OUTPUT_DIR="slam_results_$(date +%Y%m%d_%H%M%S)"
+DEFAULT_OUTPUT_DIR="outputs/slam_results_$(date +%Y%m%d_%H%M%S)"
 VOCABULARY_PATH="Vocabulary/ORBvoc.txt"
 CONFIG_PATH="Examples/Stereo/Lunar.yaml"
 TIMESTAMP_FILE="Examples/Stereo/EuRoC_TimeStamps/LUNAR_synchronized.txt"
