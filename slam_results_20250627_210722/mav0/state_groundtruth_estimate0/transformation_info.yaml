@@ -1,0 +1,30 @@
+normalization_applied: true
+original_first_pose:
+  orientation:
+  - 0.03688911255839496
+  - 0.10821483313214114
+  - 0.7523521802734002
+  - 0.6487641637010308
+  position:
+  - -3.4042718410491943
+  - -6.831296920776367
+  - 3.6721065044403076
+original_first_timestamp: 1750194798.7669122
+output_formats:
+  euroc_csv: mav0/state_groundtruth_estimate0/data.csv
+  tum_normalized: mav0/state_groundtruth_estimate0/groundtruth_normalized.txt
+  tum_original: mav0/state_groundtruth_estimate0/groundtruth.txt
+pose_normalization: Transformed to start from origin (0,0,0)
+tf_transforms:
+- child_frame: base_link
+  parent_frame: world
+  rotation:
+  - -0.02191225407091691
+  - 0.12224166674083145
+  - 0.7376245768668005
+  - 0.6636918047075983
+  translation:
+  - -3.469132900238037
+  - -6.851869583129883
+  - 3.704745054244995
+timestamp_normalization: Normalized to start from 0.000000000 seconds

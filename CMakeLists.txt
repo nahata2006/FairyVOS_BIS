@@ -424,23 +424,7 @@ if(Pangolin_FOUND)
     target_link_libraries(test_foundationstereo_slam ${Pangolin_LIBRARIES})
 endif()
 
-# Full FoundationStereo SLAM Example
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/Examples)
-
-add_executable(stereo_euroc_foundationstereo_full
-Examples/stereo_euroc_foundationstereo_full.cpp)
-
-target_link_libraries(stereo_euroc_foundationstereo_full 
-${PROJECT_NAME}
-${OpenCV_LIBS}
-${EIGEN3_LIBS}
--lboost_serialization
--lcrypto
-)
-
-if(Pangolin_FOUND)
-    target_link_libraries(stereo_euroc_foundationstereo_full ${Pangolin_LIBRARIES})
-endif()
+# Full FoundationStereo SLAM Example removed - was a placeholder without actual integration
 
 # Commented out remaining Examples_old targets
 # if(realsense2_FOUND)

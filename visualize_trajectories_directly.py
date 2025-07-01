@@ -4,39 +4,118 @@ import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import pandas as pd
+import os
+import sys
+import glob
+import argparse
+from pathlib import Path
 
 def read_tum_trajectory(filepath, max_poses=None):
     """Read trajectory from TUM format file"""
+    if not os.path.exists(filepath):
+        print(f"⚠️  File not found: {filepath}")
+        return None
+        
     data = []
     count = 0
-    with open(filepath, 'r') as f:
-        for line in f:
-            line = line.strip()
-            if line and not line.startswith('#'):
-                parts = line.split()
-                if len(parts) >= 8:
-                    timestamp = float(parts[0])
-                    tx, ty, tz = float(parts[1]), float(parts[2]), float(parts[3])
-                    qx, qy, qz, qw = float(parts[4]), float(parts[5]), float(parts[6]), float(parts[7])
-                    data.append([timestamp, tx, ty, tz, qx, qy, qz, qw])
-                    count += 1
-                    if max_poses and count >= max_poses:
-                        break
-    
-    df = pd.DataFrame(data, columns=['timestamp', 'tx', 'ty', 'tz', 'qx', 'qy', 'qz', 'qw'])
-    return df
+    try:
+        with open(filepath, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#'):
+                    parts = line.split()
+                    if len(parts) >= 8:
+                        timestamp = float(parts[0])
+                        tx, ty, tz = float(parts[1]), float(parts[2]), float(parts[3])
+                        qx, qy, qz, qw = float(parts[4]), float(parts[5]), float(parts[6]), float(parts[7])
+                        data.append([timestamp, tx, ty, tz, qx, qy, qz, qw])
+                        count += 1
+                        if max_poses and count >= max_poses:
+                            break
+        
+        if not data:
+            print(f"⚠️  No valid trajectory data found in: {filepath}")
+            return None
+            
+        df = pd.DataFrame(data, columns=['timestamp', 'tx', 'ty', 'tz', 'qx', 'qy', 'qz', 'qw'])
+        print(f"✅ Loaded {len(df)} poses from: {filepath}")
+        return df
+    except Exception as e:
+        print(f"❌ Error reading {filepath}: {e}")
+        return None
 
-def find_best_coordinate_transformation():
+def discover_trajectory_files(mav0_path):
+    """Discover all trajectory files in the mav0 output structure"""
+    mav0_path = Path(mav0_path)
+    
+    # Ground truth file
+    gt_file = mav0_path / "state_groundtruth_estimate0" / "groundtruth_normalized.txt"
+    
+    # Discover output directories and their trajectory files
+    output_dir = mav0_path / "output"
+    trajectories = {}
+    
+    if not output_dir.exists():
+        print(f"⚠️  Output directory not found: {output_dir}")
+        return str(gt_file), trajectories
+    
+    print(f"🔍 Discovering trajectory files in: {output_dir}")
+    
+    # Look for subdirectories in output/
+    for method_dir in output_dir.iterdir():
+        if method_dir.is_dir():
+            method_name = method_dir.name
+            print(f"📁 Found method directory: {method_name}")
+            
+            # Look for trajectory files in this method directory
+            trajectory_files = []
+            
+            # Common trajectory file patterns
+            patterns = [
+                "CameraTrajectory*.txt",
+                "KeyFrameTrajectory*.txt", 
+                "*Trajectory*.txt",
+                "trajectory*.txt",
+                "*.txt"
+            ]
+            
+            for pattern in patterns:
+                matches = list(method_dir.glob(pattern))
+                for match in matches:
+                    if match.is_file() and match.name.endswith('.txt'):
+                        trajectory_files.append(match)
+            
+            # Remove duplicates and sort
+            trajectory_files = sorted(list(set(trajectory_files)))
+            
+            if trajectory_files:
+                print(f"  📄 Found trajectory files:")
+                for traj_file in trajectory_files:
+                    print(f"    - {traj_file.name}")
+                
+                # Store all trajectory files for this method
+                trajectories[method_name] = trajectory_files
+            else:
+                print(f"  ⚠️  No trajectory files found in {method_name}")
+    
+    return str(gt_file), trajectories
+
+def find_best_coordinate_transformation(gt_trajectory, comparison_trajectories):
     """Find the best coordinate transformation including sign flips"""
     
-    print("🔍 Testing different coordinate transformations and sign flips...")
+    print("\n🔍 Testing different coordinate transformations and sign flips...")
     
-    # Load trajectories
-    gt_original = read_tum_trajectory("groundtruth_normalized.txt")
-    fs = read_tum_trajectory("estimated_trajectory_foundationstereo.txt") 
+    if gt_trajectory is None or len(comparison_trajectories) == 0:
+        print("❌ No trajectories to analyze")
+        return {}, 'Original'
     
-    gt_pos = gt_original[['tx', 'ty', 'tz']].values
-    fs_pos = fs[['tx', 'ty', 'tz']].values
+    gt_pos = gt_trajectory[['tx', 'ty', 'tz']].values
+    
+    # Use the first trajectory for transformation analysis
+    first_traj = list(comparison_trajectories.values())[0]
+    if isinstance(first_traj, list):
+        first_traj = first_traj[0]  # Use first file if multiple
+    comparison_pos = first_traj[['tx', 'ty', 'tz']].values
     
     # Try different transformations with sign flips
     transformations = {
@@ -57,336 +136,395 @@ def find_best_coordinate_transformation():
     for name, gt_transformed in transformations.items():
         # Calculate ranges
         gt_ranges = np.ptp(gt_transformed, axis=0)
-        fs_ranges = np.ptp(fs_pos, axis=0)
+        comp_ranges = np.ptp(comparison_pos, axis=0)
         
         # Calculate similarity score (how well ranges match)
-        range_ratios = np.minimum(gt_ranges, fs_ranges) / np.maximum(gt_ranges, fs_ranges)
+        range_ratios = np.minimum(gt_ranges, comp_ranges) / np.maximum(gt_ranges, comp_ranges)
         similarity_score = np.mean(range_ratios)
         
-        # Calculate shape correlation (how well the trajectories correlate)
-        # Sample both trajectories at same time points for correlation
-        if len(gt_transformed) > len(fs_pos):
-            # Downsample GT to match FS length
-            indices = np.linspace(0, len(gt_transformed)-1, len(fs_pos), dtype=int)
+        # Calculate shape correlation
+        if len(gt_transformed) > len(comparison_pos):
+            indices = np.linspace(0, len(gt_transformed)-1, len(comparison_pos), dtype=int)
             gt_sampled = gt_transformed[indices]
-            fs_sampled = fs_pos
+            comp_sampled = comparison_pos
         else:
-            # Use all GT points
             gt_sampled = gt_transformed
-            indices = np.linspace(0, len(fs_pos)-1, len(gt_transformed), dtype=int)
-            fs_sampled = fs_pos[indices]
+            indices = np.linspace(0, len(comparison_pos)-1, len(gt_transformed), dtype=int)
+            comp_sampled = comparison_pos[indices]
         
-        # Calculate correlation coefficient for X and Y coordinates
         try:
-            corr_x = np.corrcoef(gt_sampled[:, 0], fs_sampled[:, 0])[0, 1]
-            corr_y = np.corrcoef(gt_sampled[:, 1], fs_sampled[:, 1])[0, 1]
-            shape_correlation = (abs(corr_x) + abs(corr_y)) / 2
+            corr_x = np.corrcoef(gt_sampled[:, 0], comp_sampled[:, 0])[0, 1]
+            corr_y = np.corrcoef(gt_sampled[:, 1], comp_sampled[:, 1])[0, 1]
+            
+            # Strongly prefer positive correlations (correct orientation) over negative ones (flipped)
+            # Give full weight to positive correlations, very little to negative ones
+            pos_corr_x = max(0, corr_x) + 0.05 * abs(min(0, corr_x))
+            pos_corr_y = max(0, corr_y) + 0.05 * abs(min(0, corr_y))
+            
+            # Additional penalty if both X and Y are negatively correlated (complete flip)
+            if corr_x < 0 and corr_y < 0:
+                flip_penalty = 0.3  # Reduce score significantly for complete flips
+                pos_corr_x *= (1 - flip_penalty)
+                pos_corr_y *= (1 - flip_penalty)
+            
+            shape_correlation = (pos_corr_x + pos_corr_y) / 2
         except:
+            corr_x, corr_y = 0, 0
             shape_correlation = 0
         
-        # Combined score: range similarity + shape correlation
+        # Combined score
         combined_score = (similarity_score + shape_correlation) / 2
         
         results[name] = {
             'gt_ranges': gt_ranges,
-            'fs_ranges': fs_ranges,
+            'comp_ranges': comp_ranges,
             'similarity_score': similarity_score,
             'shape_correlation': shape_correlation,
             'combined_score': combined_score,
             'transformed_pos': gt_transformed,
-            'corr_x': corr_x if 'corr_x' in locals() else 0,
-            'corr_y': corr_y if 'corr_y' in locals() else 0
+            'corr_x': corr_x,
+            'corr_y': corr_y
         }
         
         print(f"\n🔍 {name}:")
         print(f"  GT Ranges: X={gt_ranges[0]:.3f}, Y={gt_ranges[1]:.3f}, Z={gt_ranges[2]:.3f}")
-        print(f"  FS Ranges: X={fs_ranges[0]:.3f}, Y={fs_ranges[1]:.3f}, Z={fs_ranges[2]:.3f}")
+        print(f"  Comp Ranges: X={comp_ranges[0]:.3f}, Y={comp_ranges[1]:.3f}, Z={comp_ranges[2]:.3f}")
         print(f"  Range Similarity: {similarity_score:.3f}")
-        print(f"  Shape Correlation: {shape_correlation:.3f} (X:{results[name]['corr_x']:.3f}, Y:{results[name]['corr_y']:.3f})")
+        print(f"  Raw Correlations: X:{corr_x:.3f}, Y:{corr_y:.3f}")
+        print(f"  Oriented Correlation: {shape_correlation:.3f}")
         print(f"  Combined Score: {combined_score:.3f}")
     
     # Find best transformation
     best_transform = max(results.keys(), key=lambda k: results[k]['combined_score'])
     
-    # If multiple transformations have the same score, prefer positive correlations
-    max_score = results[best_transform]['combined_score']
-    tied_transforms = [k for k, v in results.items() if abs(v['combined_score'] - max_score) < 0.001]
-    
-    if len(tied_transforms) > 1:
-        print(f"\n🔄 Multiple transformations tied with score {max_score:.3f}, selecting based on positive correlations...")
-        # Show correlation details for tied transforms
-        for t in tied_transforms:
-            r = results[t]
-            pos_count = (r['corr_x'] > 0) + (r['corr_y'] > 0)
-            print(f"   {t}: {pos_count} positive correlations (X:{r['corr_x']:.3f}, Y:{r['corr_y']:.3f})")
-        
-        # Manually select the one with both positive correlations
-        if 'X→Y, Y→Z, Z→X, flip_XY' in tied_transforms:
-            best_transform = 'X→Y, Y→Z, Z→X, flip_XY'
-            print(f"   Selected: {best_transform} (both X and Y correlations positive)")
-        else:
-            # Fallback to original tie-breaking logic
-            def correlation_score(transform_name):
-                r = results[transform_name]
-                pos_corr_count = (r['corr_x'] > 0) + (r['corr_y'] > 0)
-                avg_abs_corr = (abs(r['corr_x']) + abs(r['corr_y'])) / 2
-                return (pos_corr_count, avg_abs_corr)
-            
-            best_transform = max(tied_transforms, key=correlation_score)
-            r = results[best_transform]
-            best_pos_count = (r['corr_x'] > 0) + (r['corr_y'] > 0)
-            print(f"   Selected: {best_transform} ({best_pos_count} positive correlations)")
-    
     print(f"\n🏆 Best transformation: {best_transform}")
     print(f"   Combined score: {results[best_transform]['combined_score']:.3f}")
-    print(f"   Range similarity: {results[best_transform]['similarity_score']:.3f}")
-    print(f"   Shape correlation: {results[best_transform]['shape_correlation']:.3f}")
-    print(f"   X Correlation: {results[best_transform]['corr_x']:.3f}")
-    print(f"   Y Correlation: {results[best_transform]['corr_y']:.3f}")
     
     return results, best_transform
 
-def apply_best_coordinate_transformation(df, best_transform_name):
-    """Apply the best coordinate transformation found"""
+def apply_coordinate_transformation(df, transform_name):
+    """Apply coordinate transformation to dataframe"""
+    if df is None:
+        return None
+        
     df_transformed = df.copy()
     
-    # Store original coordinates
     orig_x = df['tx'].values
     orig_y = df['ty'].values  
     orig_z = df['tz'].values
     
-    if best_transform_name == 'Original':
-        # No transformation
+    if transform_name == 'Original':
         pass
-    elif best_transform_name == 'X→Y, Y→Z, Z→X':
+    elif transform_name == 'X→Y, Y→Z, Z→X':
         df_transformed['tx'] = orig_y  
         df_transformed['ty'] = orig_z  
         df_transformed['tz'] = orig_x
-    elif best_transform_name == 'X→Y, Y→Z, Z→X, flip_X':
+    elif transform_name == 'X→Y, Y→Z, Z→X, flip_X':
         df_transformed['tx'] = -orig_y  
         df_transformed['ty'] = orig_z  
         df_transformed['tz'] = orig_x
-    elif best_transform_name == 'X→Y, Y→Z, Z→X, flip_Y':
+    elif transform_name == 'X→Y, Y→Z, Z→X, flip_Y':
         df_transformed['tx'] = orig_y  
         df_transformed['ty'] = -orig_z  
         df_transformed['tz'] = orig_x
-    elif best_transform_name == 'X→Y, Y→Z, Z→X, flip_Z':
+    elif transform_name == 'X→Y, Y→Z, Z→X, flip_Z':
         df_transformed['tx'] = orig_y  
         df_transformed['ty'] = orig_z  
         df_transformed['tz'] = -orig_x
-    elif best_transform_name == 'X→Y, Y→Z, Z→X, flip_XY':
+    elif transform_name == 'X→Y, Y→Z, Z→X, flip_XY':
         df_transformed['tx'] = -orig_y  
         df_transformed['ty'] = -orig_z  
         df_transformed['tz'] = orig_x
-    elif best_transform_name == 'X→Y, Y→Z, Z→X, flip_XZ':
+    elif transform_name == 'X→Y, Y→Z, Z→X, flip_XZ':
         df_transformed['tx'] = -orig_y  
         df_transformed['ty'] = orig_z  
         df_transformed['tz'] = -orig_x
-    elif best_transform_name == 'X→Y, Y→Z, Z→X, flip_YZ':
+    elif transform_name == 'X→Y, Y→Z, Z→X, flip_YZ':
         df_transformed['tx'] = orig_y  
         df_transformed['ty'] = -orig_z  
         df_transformed['tz'] = -orig_x
-    elif best_transform_name == 'X→Y, Y→Z, Z→X, flip_XYZ':
+    elif transform_name == 'X→Y, Y→Z, Z→X, flip_XYZ':
         df_transformed['tx'] = -orig_y  
         df_transformed['ty'] = -orig_z  
         df_transformed['tz'] = -orig_x
     
     return df_transformed
 
-def create_trajectory_comparison():
-    """Create comprehensive trajectory visualization with best coordinate transformation"""
+def create_comprehensive_comparison(mav0_path):
+    """Create comprehensive trajectory comparison from mav0 structure"""
     
-    # Find the best transformation
-    results, best_transform = find_best_coordinate_transformation()
+    print(f"🎯 COMPREHENSIVE MAV0 TRAJECTORY ANALYSIS")
+    print("="*60)
+    print(f"📁 MAV0 Path: {mav0_path}")
     
-    # Load trajectories
-    print(f"\n📁 Loading trajectory data...")
-    gt_original = read_tum_trajectory("groundtruth_normalized.txt")
-    fs = read_tum_trajectory("estimated_trajectory_foundationstereo.txt") 
-    orig = read_tum_trajectory("estimated_trajectory_original_normalized.txt")
+    # Discover all trajectory files
+    gt_file, trajectory_files = discover_trajectory_files(mav0_path)
     
-    # Apply best coordinate transformation to ground truth
-    print(f"🔄 Applying best coordinate transformation to ground truth...")
-    print(f"   Transformation: {best_transform}")
-    print(f"   Combined score: {results[best_transform]['combined_score']:.3f}")
-    gt = apply_best_coordinate_transformation(gt_original, best_transform)
+    # Load ground truth
+    print(f"\n📍 Loading ground truth from: {gt_file}")
+    gt_original = read_tum_trajectory(gt_file)
     
-    print(f"✅ Loaded and transformed trajectories:")
-    print(f"  Ground Truth: {len(gt)} poses (coordinate-aligned)")
-    print(f"  FoundationStereo: {len(fs)} poses") 
-    print(f"  Original ORB-SLAM3: {len(orig)} poses")
+    if gt_original is None:
+        print("❌ Could not load ground truth. Exiting.")
+        return
     
-    # Calculate trajectory statistics
-    def calc_stats(df, name):
-        path_length = np.sum(np.sqrt(np.diff(df['tx'])**2 + np.diff(df['ty'])**2 + np.diff(df['tz'])**2))
-        duration = df['timestamp'].max() - df['timestamp'].min()
-        range_x = df['tx'].max() - df['tx'].min()
-        range_y = df['ty'].max() - df['ty'].min()  
-        range_z = df['tz'].max() - df['tz'].min()
-        print(f"\n📊 {name}:")
-        print(f"  Path Length: {path_length:.3f} m")
-        print(f"  Duration: {duration:.1f} s")
-        print(f"  X Range: {range_x:.3f} m")
-        print(f"  Y Range: {range_y:.3f} m")
-        print(f"  Z Range: {range_z:.3f} m")
-        return path_length, duration
+    # Load all trajectory files
+    all_trajectories = {}
+    trajectory_data = {}
     
-    print("\n" + "="*50)
-    print("📊 BEST-ALIGNED STATISTICS")
-    print("="*50)
+    for method_name, files in trajectory_files.items():
+        print(f"\n📊 Loading trajectories for method: {method_name}")
+        method_trajectories = {}
+        
+        for traj_file in files:
+            traj_name = traj_file.stem  # filename without extension
+            traj_data = read_tum_trajectory(str(traj_file))
+            
+            if traj_data is not None:
+                method_trajectories[traj_name] = traj_data
+                
+                # Use the first trajectory file as primary for this method
+                if len(method_trajectories) == 1:
+                    trajectory_data[method_name] = traj_data
+        
+        all_trajectories[method_name] = method_trajectories
     
-    gt_path, gt_dur = calc_stats(gt, "Ground Truth (Best Aligned)")
-    fs_path, fs_dur = calc_stats(fs, "FoundationStereo")
-    orig_path, orig_dur = calc_stats(orig, "Original ORB-SLAM3")
+    if not trajectory_data:
+        print("❌ No valid trajectory files found. Exiting.")
+        return
     
-    # Show final alignment quality
-    gt_ranges = np.array([gt['tx'].max() - gt['tx'].min(), 
-                         gt['ty'].max() - gt['ty'].min(), 
-                         gt['tz'].max() - gt['tz'].min()])
-    fs_ranges = np.array([fs['tx'].max() - fs['tx'].min(), 
-                         fs['ty'].max() - fs['ty'].min(), 
-                         fs['tz'].max() - fs['tz'].min()])
-    orig_ranges = np.array([orig['tx'].max() - orig['tx'].min(), 
-                           orig['ty'].max() - orig['ty'].min(), 
-                           orig['tz'].max() - orig['tz'].min()])
+    # Find best coordinate transformation
+    print(f"\n🔄 Finding optimal coordinate transformation...")
+    results, best_transform = find_best_coordinate_transformation(gt_original, trajectory_data)
     
-    fs_similarity = results[best_transform]['similarity_score']
-    fs_correlation = results[best_transform]['shape_correlation']
+    if not results:
+        print("❌ Could not determine coordinate transformation. Using original.")
+        best_transform = 'Original'
     
-    print(f"\n🎯 BEST ALIGNMENT QUALITY:")
-    print(f"  Range Similarity: {fs_similarity:.1%}")
-    print(f"  Shape Correlation: {fs_correlation:.1%}")
-    print(f"  Combined Score: {results[best_transform]['combined_score']:.1%}")
+    # Apply transformation to ground truth
+    print(f"\n🔄 Applying coordinate transformation: {best_transform}")
+    gt = apply_coordinate_transformation(gt_original, best_transform)
     
-    # Create comprehensive visualization
-    fig = plt.figure(figsize=(20, 15))
+    # Create visualization
+    print(f"\n🎨 Creating comprehensive visualization...")
     
-    # 2D XY trajectory plot - BEST ALIGNED COMPARISON
+    # Determine subplot layout based on number of methods
+    n_methods = len(trajectory_data)
+    fig_width = max(20, 5 * n_methods)
+    fig_height = 15
+    
+    fig = plt.figure(figsize=(fig_width, fig_height))
+    
+    # Color mapping for different methods
+    colors = ['red', 'blue', 'green', 'orange', 'purple', 'brown', 'pink', 'gray']
+    method_colors = {method: colors[i % len(colors)] for i, method in enumerate(trajectory_data.keys())}
+    
+    # 1. Main XY trajectory comparison
     ax1 = plt.subplot(2, 3, 1)
-    ax1.plot(gt['tx'], gt['ty'], 'k-', linewidth=3, label=f'Ground Truth (Best Aligned, {len(gt)} poses)', alpha=0.8)
-    ax1.plot(fs['tx'], fs['ty'], 'r-', linewidth=2, label=f'FoundationStereo ({len(fs)} poses)', alpha=0.8)
-    ax1.plot(orig['tx'], orig['ty'], 'b-', linewidth=2, label=f'Original ORB-SLAM3 ({len(orig)} poses)', alpha=0.8)
+    ax1.plot(gt['tx'], gt['ty'], 'k-', linewidth=3, label=f'Ground Truth ({len(gt)} poses)', alpha=0.8)
     
-    # Mark start points
+    for method_name, traj in trajectory_data.items():
+        color = method_colors[method_name]
+        ax1.plot(traj['tx'], traj['ty'], color=color, linewidth=2, 
+                label=f'{method_name} ({len(traj)} poses)', alpha=0.8)
+        
+        # Mark start points
+        ax1.plot(traj['tx'].iloc[0], traj['ty'].iloc[0], 'o', color=color, 
+                markersize=6, alpha=0.8)
+    
+    # Mark GT start
     ax1.plot(gt['tx'].iloc[0], gt['ty'].iloc[0], 'ko', markersize=8, label='GT Start')
-    ax1.plot(fs['tx'].iloc[0], fs['ty'].iloc[0], 'ro', markersize=8, label='FS Start')
-    ax1.plot(orig['tx'].iloc[0], orig['ty'].iloc[0], 'bo', markersize=8, label='Orig Start')
     
     ax1.set_xlabel('X (m)')
     ax1.set_ylabel('Y (m)')
-    ax1.set_title(f'✅ BEST ALIGNED Trajectory Comparison\n({best_transform})')
+    ax1.set_title(f'XY Trajectory Comparison\n({best_transform})')
     ax1.legend()
     ax1.grid(True, alpha=0.3)
     ax1.axis('equal')
     
-    # 2D XZ trajectory plot  
+    # 2. XZ trajectory comparison
     ax2 = plt.subplot(2, 3, 2)
-    ax2.plot(gt['tx'], gt['tz'], 'k-', linewidth=3, label='Ground Truth (Best Aligned)', alpha=0.8)
-    ax2.plot(fs['tx'], fs['tz'], 'r-', linewidth=2, label='FoundationStereo', alpha=0.8)
-    ax2.plot(orig['tx'], orig['tz'], 'b-', linewidth=2, label='Original ORB-SLAM3', alpha=0.8)
+    ax2.plot(gt['tx'], gt['tz'], 'k-', linewidth=3, label='Ground Truth', alpha=0.8)
+    
+    for method_name, traj in trajectory_data.items():
+        color = method_colors[method_name]
+        ax2.plot(traj['tx'], traj['tz'], color=color, linewidth=2, 
+                label=method_name, alpha=0.8)
+    
     ax2.set_xlabel('X (m)')
     ax2.set_ylabel('Z (m)')
-    ax2.set_title('XZ Plane (Best Aligned)')
+    ax2.set_title('XZ Trajectory Comparison')
     ax2.legend()
     ax2.grid(True, alpha=0.3)
     ax2.axis('equal')
     
-    # Position vs Time plots
+    # 3. Position vs Time
     ax3 = plt.subplot(2, 3, 3)
     ax3.plot(gt['timestamp'], gt['tx'], 'k-', linewidth=2, label='GT X', alpha=0.7)
     ax3.plot(gt['timestamp'], gt['ty'], 'k--', linewidth=2, label='GT Y', alpha=0.7)
-    ax3.plot(fs['timestamp'], fs['tx'], 'r-', linewidth=1.5, label='FS X', alpha=0.8)
-    ax3.plot(fs['timestamp'], fs['ty'], 'r--', linewidth=1.5, label='FS Y', alpha=0.8)
-    ax3.plot(orig['timestamp'], orig['tx'], 'b-', linewidth=1.5, label='Orig X', alpha=0.8)
-    ax3.plot(orig['timestamp'], orig['ty'], 'b--', linewidth=1.5, label='Orig Y', alpha=0.8)
+    
+    for method_name, traj in trajectory_data.items():
+        color = method_colors[method_name]
+        ax3.plot(traj['timestamp'], traj['tx'], color=color, linewidth=1.5, 
+                label=f'{method_name} X', alpha=0.8)
+        ax3.plot(traj['timestamp'], traj['ty'], '--', color=color, linewidth=1.5, 
+                label=f'{method_name} Y', alpha=0.8)
+    
     ax3.set_xlabel('Time (s)')
     ax3.set_ylabel('Position (m)')
-    ax3.set_title('Position vs Time (Best Aligned)')
+    ax3.set_title('Position vs Time')
     ax3.legend()
     ax3.grid(True, alpha=0.3)
     
-    # 3D trajectory plot
+    # 4. 3D trajectory
     ax4 = plt.subplot(2, 3, 4, projection='3d')
-    ax4.plot(gt['tx'], gt['ty'], gt['tz'], 'k-', linewidth=3, label='Ground Truth (Best Aligned)', alpha=0.8)
-    ax4.plot(fs['tx'], fs['ty'], fs['tz'], 'r-', linewidth=2, label='FoundationStereo', alpha=0.8)
-    ax4.plot(orig['tx'], orig['ty'], orig['tz'], 'b-', linewidth=2, label='Original ORB-SLAM3', alpha=0.8)
+    ax4.plot(gt['tx'], gt['ty'], gt['tz'], 'k-', linewidth=3, label='Ground Truth', alpha=0.8)
+    
+    for method_name, traj in trajectory_data.items():
+        color = method_colors[method_name]
+        ax4.plot(traj['tx'], traj['ty'], traj['tz'], color=color, linewidth=2, 
+                label=method_name, alpha=0.8)
+    
     ax4.set_xlabel('X (m)')
     ax4.set_ylabel('Y (m)')
     ax4.set_zlabel('Z (m)')
-    ax4.set_title('3D Trajectory (Best Aligned)')
+    ax4.set_title('3D Trajectory Comparison')
     ax4.legend()
     
-    # Coordinate range comparison
+    # 5. Coordinate range comparison
     ax5 = plt.subplot(2, 3, 5)
     
-    x_pos = np.arange(3)
-    width = 0.25
+    gt_ranges = np.array([gt['tx'].max() - gt['tx'].min(), 
+                         gt['ty'].max() - gt['ty'].min(), 
+                         gt['tz'].max() - gt['tz'].min()])
     
-    ax5.bar(x_pos - width, gt_ranges, width, label='Ground Truth (Best Aligned)', alpha=0.8, color='black')
-    ax5.bar(x_pos, fs_ranges, width, label='FoundationStereo', alpha=0.8, color='red')
-    ax5.bar(x_pos + width, orig_ranges, width, label='Original ORB-SLAM3', alpha=0.8, color='blue')
+    x_pos = np.arange(3)
+    width = 0.2
+    
+    # Plot ground truth
+    ax5.bar(x_pos - width * (len(trajectory_data)/2), gt_ranges, width, 
+           label='Ground Truth', alpha=0.8, color='black')
+    
+    # Plot each method
+    for i, (method_name, traj) in enumerate(trajectory_data.items()):
+        traj_ranges = np.array([traj['tx'].max() - traj['tx'].min(), 
+                               traj['ty'].max() - traj['ty'].min(), 
+                               traj['tz'].max() - traj['tz'].min()])
+        
+        offset = width * (i - len(trajectory_data)/2 + 0.5)
+        color = method_colors[method_name]
+        ax5.bar(x_pos + offset, traj_ranges, width, 
+               label=method_name, alpha=0.8, color=color)
     
     ax5.set_xlabel('Coordinate Axis')
     ax5.set_ylabel('Range (m)')
-    ax5.set_title('Coordinate Range Comparison (Best Aligned)')
+    ax5.set_title('Coordinate Range Comparison')
     ax5.set_xticks(x_pos)
     ax5.set_xticklabels(['X', 'Y', 'Z'])
     ax5.legend()
     ax5.grid(True, alpha=0.3, axis='y')
     
-    # Add value labels
-    for i, (gt_r, fs_r, orig_r) in enumerate(zip(gt_ranges, fs_ranges, orig_ranges)):
-        ax5.text(i - width, gt_r + 0.1, f'{gt_r:.1f}', ha='center', va='bottom', fontsize=8)
-        ax5.text(i, fs_r + 0.1, f'{fs_r:.1f}', ha='center', va='bottom', fontsize=8)
-        ax5.text(i + width, orig_r + 0.1, f'{orig_r:.1f}', ha='center', va='bottom', fontsize=8)
-    
-    # Alignment quality comparison
+    # 6. Statistics summary
     ax6 = plt.subplot(2, 3, 6)
+    ax6.axis('off')
     
-    metrics = ['Range\nSimilarity', 'Shape\nCorrelation', 'Combined\nScore']
-    values = [fs_similarity, fs_correlation, results[best_transform]['combined_score']]
-    colors = ['lightblue', 'lightgreen', 'gold']
+    # Calculate and display statistics
+    stats_text = f"📊 TRAJECTORY STATISTICS\n\n"
+    stats_text += f"Ground Truth ({best_transform}):\n"
     
-    bars = ax6.bar(metrics, values, color=colors, alpha=0.8)
-    ax6.set_ylabel('Score')
-    ax6.set_title('Alignment Quality Metrics')
-    ax6.set_ylim(0, 1)
-    ax6.grid(True, alpha=0.3, axis='y')
+    gt_path = np.sum(np.sqrt(np.diff(gt['tx'])**2 + np.diff(gt['ty'])**2 + np.diff(gt['tz'])**2))
+    gt_duration = gt['timestamp'].max() - gt['timestamp'].min()
+    stats_text += f"  Path: {gt_path:.1f}m, Duration: {gt_duration:.1f}s\n"
+    stats_text += f"  Poses: {len(gt)}\n\n"
     
-    # Add value labels
-    for bar, value in zip(bars, values):
-        height = bar.get_height()
-        ax6.text(bar.get_x() + bar.get_width()/2., height + 0.02,
-                f'{value:.1%}', ha='center', va='bottom', fontweight='bold')
+    for method_name, traj in trajectory_data.items():
+        path_length = np.sum(np.sqrt(np.diff(traj['tx'])**2 + np.diff(traj['ty'])**2 + np.diff(traj['tz'])**2))
+        duration = traj['timestamp'].max() - traj['timestamp'].min()
+        
+        stats_text += f"{method_name}:\n"
+        stats_text += f"  Path: {path_length:.1f}m ({path_length/gt_path*100:.1f}% of GT)\n"
+        stats_text += f"  Duration: {duration:.1f}s ({duration/gt_duration*100:.1f}% of GT)\n"
+        stats_text += f"  Poses: {len(traj)}\n\n"
+    
+    # Add alignment quality if available
+    if best_transform in results:
+        result = results[best_transform]
+        stats_text += f"🎯 ALIGNMENT QUALITY:\n"
+        stats_text += f"  Range Similarity: {result['similarity_score']:.1%}\n"
+        stats_text += f"  Shape Correlation: {result['shape_correlation']:.1%}\n"
+        stats_text += f"  Combined Score: {result['combined_score']:.1%}\n"
+    
+    ax6.text(0.1, 0.9, stats_text, transform=ax6.transAxes, fontsize=10, 
+            verticalalignment='top', fontfamily='monospace')
     
     plt.tight_layout()
-    plt.savefig('best_aligned_trajectory_comparison.png', dpi=300, bbox_inches='tight')
-    print("\n✅ Saved best_aligned_trajectory_comparison.png")
     
-    # Summary
+    # Save the plot
+    output_file = f"mav0_trajectory_comparison.png"
+    plt.savefig(output_file, dpi=300, bbox_inches='tight')
+    print(f"\n✅ Saved comprehensive comparison: {output_file}")
+    
+    # Print summary
     print(f"\n" + "="*60)
-    print("🎯 BEST ALIGNED TRAJECTORY COMPARISON SUMMARY")
+    print("🎯 MAV0 TRAJECTORY COMPARISON SUMMARY")
     print("="*60)
-    print(f"🔧 Best Transformation: {best_transform}")
-    print(f"📊 Alignment Quality: {results[best_transform]['combined_score']:.1%}")
-    print(f"📏 Path Length Ratios (Best Aligned):")
-    print(f"  FoundationStereo: {fs_path/gt_path*100:.1f}% of ground truth")
-    print(f"  Original ORB-SLAM3: {orig_path/gt_path*100:.1f}% of ground truth")
-    print(f"\n⏱️ Duration Coverage:")
-    print(f"  FoundationStereo: {fs_dur/gt_dur*100:.1f}% of ground truth")
-    print(f"  Original ORB-SLAM3: {orig_dur/gt_dur*100:.1f}% of ground truth")
-    print(f"\n🎯 Final Alignment Metrics:")
-    print(f"  Range Similarity: {fs_similarity:.1%}")
-    print(f"  Shape Correlation: {fs_correlation:.1%}")
-    print(f"  X Correlation: {results[best_transform]['corr_x']:.3f}")
-    print(f"  Y Correlation: {results[best_transform]['corr_y']:.3f}")
+    print(f"📁 MAV0 Path: {mav0_path}")
+    print(f"🔧 Coordinate Transform: {best_transform}")
     
-    print(f"\n✅ This should now be a PROPERLY aligned comparison!")
+    if best_transform in results:
+        result = results[best_transform]
+        print(f"📊 Alignment Quality: {result['combined_score']:.1%}")
+    
+    print(f"\n📊 Methods Analyzed:")
+    for method_name, files in all_trajectories.items():
+        print(f"  🔹 {method_name}: {len(files)} trajectory files")
+        for filename, traj in files.items():
+            if traj is not None:
+                print(f"    - {filename}: {len(traj)} poses")
+    
+    print(f"\n✅ Analysis complete! Check {output_file} for visualization.")
+
+def main():
+    parser = argparse.ArgumentParser(description='Comprehensive MAV0 trajectory analysis and comparison')
+    parser.add_argument('mav0_path', help='Path to the mav0 folder containing state_groundtruth_estimate0 and output subdirectories')
+    parser.add_argument('--max-poses', type=int, help='Maximum number of poses to load per trajectory (for testing)')
+    
+    args = parser.parse_args()
+    
+    # Check if mav0 path exists
+    if not os.path.exists(args.mav0_path):
+        print(f"❌ MAV0 path does not exist: {args.mav0_path}")
+        sys.exit(1)
+    
+    # Run comprehensive analysis
+    create_comprehensive_comparison(args.mav0_path)
 
 if __name__ == "__main__":
-    print("🎯 OPTIMAL TRAJECTORY ALIGNMENT")
-    print("="*50)
-    print("Testing coordinate transformations + sign flips")
-    print("Finding best alignment using range similarity + shape correlation")
-    print("="*50)
-    create_trajectory_comparison() 
+    if len(sys.argv) == 1:
+        # If no arguments provided, show help and try to auto-detect
+        print("🎯 MAV0 TRAJECTORY ANALYZER")
+        print("="*40)
+        print("Usage: python3 visualize_trajectories_directly.py <mav0_path>")
+        print("Example: python3 visualize_trajectories_directly.py ./my_dataset/mav0")
+        print()
+        
+        # Try to auto-detect mav0 folders in current directory
+        possible_paths = []
+        for item in os.listdir('.'):
+            if os.path.isdir(item):
+                # Check if it looks like a mav0 folder
+                if (os.path.exists(os.path.join(item, 'state_groundtruth_estimate0')) or 
+                    item.endswith('mav0') or 
+                    os.path.exists(os.path.join(item, 'output'))):
+                    possible_paths.append(item)
+        
+        if possible_paths:
+            print("🔍 Auto-detected possible mav0 folders:")
+            for path in possible_paths:
+                print(f"  - {path}")
+            print()
+            print("Run with one of these paths as argument.")
+        
+        sys.exit(1)
+    
+    main() 

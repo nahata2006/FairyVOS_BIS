@@ -20,7 +20,7 @@ export USE_FOUNDATIONSTEREO=1
 export FOUNDATIONSTEREO_INTERVAL=5
 
 # 3. Run enhanced SLAM
-./Examples/stereo_euroc_foundationstereo_full \
+./Examples/Stereo/stereo_euroc_foundationstereo \
     Vocabulary/ORBvoc.txt Examples/Stereo/EuRoC.yaml \
     /path/to/dataset Examples/Stereo/EuRoC_TimeStamps/MH01.txt \
     output_name
@@ -296,7 +296,7 @@ chmod +x build.sh
 ```
 
 This creates additional executables:
-- `Examples/stereo_euroc_foundationstereo_full`: Full SLAM with FoundationStereo integration
+- `Examples/Stereo/stereo_euroc_foundationstereo`: FoundationStereo integration with SLAM
 - `Examples/test_foundationstereo_slam`: Testing utility for different stereo matching modes
 
 ## 9.3 Configuration
@@ -342,7 +342,7 @@ export USE_FOUNDATIONSTEREO=1
 export FOUNDATIONSTEREO_INTERVAL=5
 
 # Run enhanced SLAM on EuRoC dataset
-./Examples/stereo_euroc_foundationstereo_full \
+./Examples/Stereo/stereo_euroc_foundationstereo \
     Vocabulary/ORBvoc.txt \
     Examples/Stereo/EuRoC.yaml \
     /path/to/euroc/dataset \
@@ -353,7 +353,7 @@ export FOUNDATIONSTEREO_INTERVAL=5
 ### Performance Monitoring
 ```bash
 # Run with timeout and output monitoring
-timeout 300s ./Examples/stereo_euroc_foundationstereo_full \
+timeout 300s ./Examples/Stereo/stereo_euroc_foundationstereo \
     Vocabulary/ORBvoc.txt \
     Examples/Stereo/EuRoC.yaml \
     /home/user/datasets \
@@ -483,7 +483,7 @@ If you use this FoundationStereo integration, please cite both ORB-SLAM3 and Fou
 You can find a tutorial for visual-inertial calibration and a detailed description of the contents of valid configuration files at  `Calibration_Tutorial.pdf`
 
 export USE_FOUNDATIONSTEREO=1 && export FOUNDATIONSTEREO_INTERVAL=5 && \
-timeout 120s ./Examples/stereo_euroc_foundationstereo_full \
+timeout 120s ./Examples/Stereo/stereo_euroc_foundationstereo \
     Vocabulary/ORBvoc.txt Examples/Stereo/EuRoC.yaml \
     /home/lunar/datasets Examples/Stereo/EuRoC_TimeStamps/MH01.txt \
     test_foundationstereo_mh01_fixed | head -100
