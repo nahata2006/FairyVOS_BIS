@@ -1749,7 +1749,7 @@ bool Tracking::PredictStateIMU()
         const Eigen::Matrix3f Rwb1 = mpLastKeyFrame->GetImuRotation();
         const Eigen::Vector3f Vwb1 = mpLastKeyFrame->GetVelocity();
 
-        const Eigen::Vector3f Gz(0, 0, -IMU::GRAVITY_VALUE);
+        const Eigen::Vector3f Gz(0, 0, -mCurrentFrame.GetGravityValue()); // Nouvelle version
         const float t12 = mpImuPreintegratedFromLastKF->dT;
 
         Eigen::Matrix3f Rwb2 = IMU::NormalizeRotation(Rwb1 * mpImuPreintegratedFromLastKF->GetDeltaRotation(mpLastKeyFrame->GetImuBias()));
