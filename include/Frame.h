@@ -16,7 +16,6 @@
 * If not, see <http://www.gnu.org/licenses/>.
 */
 
-
 #ifndef FRAME_H
 #define FRAME_H
 
@@ -162,7 +161,12 @@ public:
         return mbHasVelocity;
     }
 
-
+    // === FairyVOS Multi-Gravity Support === //
+    float GetGravityValue() const { return mfGravity; }
+    void SetGravityValue(float g) { mfGravity = g; }
+    void UpdateGravityFromReference(const Eigen::Vector3f& imuReference, float threshold = 0.3f);
+    Eigen::Vector3f GetGravityVector() const { return Eigen::Vector3f(0, 0, -mfGravity); }
+    // ===================================== //
 
 private:
     //Sophus/Eigen migration
@@ -181,10 +185,14 @@ private:
     Eigen::Matrix<float,3,3> mRlr;
     Eigen::Vector3f mtlr;
 
-
     // IMU linear velocity
     Eigen::Vector3f mVw;
     bool mbHasVelocity;
+
+    // FairyVOS Gravity management
+    float mfGravity = 9.81f;                // Current gravity value (m/s²)
+    Eigen::Vector3f mGravityReference;      // Reference IMU data for fusion
+    bool mbGravityInitialized = false;      // First reference received
 
 public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
