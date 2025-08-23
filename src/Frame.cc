@@ -15,7 +15,7 @@
 * You should have received a copy of the GNU General Public License along with ORB-SLAM3.
 * If not, see <http://www.gnu.org/licenses/>.
 */
-
+#include <cmath> //Mise à jour
 #include "Frame.h"
 
 #include "G2oTypes.h"
@@ -1244,5 +1244,26 @@ bool Frame::isInFrustumChecks(MapPoint *pMP, float viewingCosLimit, bool bRight)
 Eigen::Vector3f Frame::UnprojectStereoFishEye(const int &i){
     return mRwc * mvStereo3Dpoints[i] + mOw;
 }
+void Frame::UpdateGravityFromReference(const Eigen::Vector3f& imuReference, float threshold) {
+    if(!mbGravityInitialized) {
+        mGravityReference = imuReference;
+        mfGravity = imuReference.norm();
+        mbGravityInitialized = true;
+        return;
+    }
+    
+    // Fusion avec filtre alpha-beta pour lisser les mesures
+    float alpha = 0.95f;
+    mGravityReference = alpha * mGravityReference + (1-alpha) * imuReference;
+    
+    // Détection de changement significatif de gravité
+    float delta = std::abs(mfGravity - mGravityReference.norm());
+    if(delta > threshold) {
+        mfGravity = mGravityReference.norm();
+        // Optionnel: logger le changement pour le debug
+        // std::cout << "Gravity updated to: " << mfGravity << " m/s²" << std::endl;
+    }
+}
 
-} //namespace ORB_SLAM
+} // namespace ORB_SLAM3
+
